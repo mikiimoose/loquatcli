@@ -295,6 +295,7 @@ int is_valid_command(const char *command) {
     if (strcmp(command, "get_status") == 0) return 1;
     if (strcmp(command, "connect") == 0) return 1;
     if (strcmp(command, "apikey") == 0) return 1;
+    if (strcmp(command, "get_net_info") == 0) return 1;
 
     return 0;
 }
@@ -306,6 +307,7 @@ int is_get_command(const char *command) {
     if (strcmp(command, "get_scan_result") == 0) return 1;
     if (strcmp(command, "status") == 0) return 1;
     if (strcmp(command, "get_status") == 0) return 1;
+    if (strcmp(command, "get_net_info") == 0) return 1;
     // Default: not a GET command (POST commands like "connect")
     return 0;
 }
@@ -362,6 +364,42 @@ void print_scan_result(const char *response) {
     cJSON_Delete(json);
 }
 
+void print_net_info_response(const char *response) {
+    if (!response) {
+        fprintf(stderr, "No response data\n");
+        return;
+    }
+    
+    fprintf(stderr, "\n=== Network Information ===\n");
+    
+    // Parse JSON using cJSON
+    cJSON *json = cJSON_Parse(response);
+    if (!json) {
+        fprintf(stderr, "Failed to parse JSON response\n");
+        return;
+    }
+    
+    // Get status
+    cJSON *status_json = cJSON_GetObjectItem(json, "status");
+    const char *status = (status_json && cJSON_IsString(status_json)) ? status_json->valuestring : "Unknown";
+    fprintf(stderr, "Connection Status: %s\n", status);
+    
+    // Get IP address
+    cJSON *ip_json = cJSON_GetObjectItem(json, "ip_address");
+    const char *ip = (ip_json && cJSON_IsString(ip_json)) ? ip_json->valuestring : "Unknown";
+    fprintf(stderr, "IP Address: %s\n", ip);
+    
+    // Get SSID
+    cJSON *ssid_json = cJSON_GetObjectItem(json, "ssid");
+    const char *ssid = (ssid_json && cJSON_IsString(ssid_json)) ? ssid_json->valuestring : "Unknown";
+    fprintf(stderr, "Connected SSID: %s\n", ssid);
+    
+    fprintf(stderr, "\n");
+    
+    // Clean up
+    cJSON_Delete(json);
+}
+
 void print_response(const char *command, const char *response) {
     if (strcmp(command, "get_scan_result") == 0) {
         print_scan_result(response);
@@ -369,6 +407,8 @@ void print_response(const char *command, const char *response) {
         fprintf(stderr, "Response:\n%s\n", response);
     } else if (strcmp(command, "apikey") == 0) {
         fprintf(stderr, "Response:\n%s\n", response);
+    } else if (strcmp(command, "get_net_info") == 0) {
+        print_net_info_response(response);
     } else {
         fprintf(stderr, "Invalid print response: %s\n", command);
     }
@@ -577,6 +617,17 @@ int main(int argc, char *argv[]) {
                 print_response(command, response);
             }
             loquat_client_free_response(response);
+        }
+        else if (strcmp(command, "get_net_info") == 0) {
+            fprintf(stderr, "Getting network information...\n");
+            if (loquat_client_get(client, command, &response, &http_code)) {
+                if (http_code != 200) {
+                    fprintf(stderr, "Error: HTTP Code: %d\n", http_code);
+                } else {
+                    print_response(command, response);
+                }
+                loquat_client_free_response(response);
+            }
         }
     } else {
         fprintf(stderr, "Making POST request...\n");
